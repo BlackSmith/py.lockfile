@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@master
 
       - name: Install poetry
-        run: pip install poetry-core
+        run: pip install poetry
 
       - name: Configure poetry
         shell: bash
