@@ -1,24 +1,17 @@
-[project]
-name = "py.lockfile"
+[tool.poetry]
+name = "py-lockfile"
 version = "0.1.0"
 description = "This is a simple tool for download python packages managed by lock file."
-authors = [
-    {name = "Martin Korbel", email = "git@blackserver.cz"},
-]
-dependencies = [
-    "toml>=0.10.2",
-]
-requires-python = ">=3.7"
+authors = ["Martin Korbel <git@github.com>"]
+license = "MIT"
 readme = "README.md"
-license = {text = "MIT"}
+packages = [{include = "py"}]
 
-[project.scripts]
-"py.lockfile" = "py_lockfile:main"
+[tool.poetry.dependencies]
+python = "^3.6"
+toml = "^0.10.2"
+
 
 [build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
-
-
-[tool.pdm]
-package-type = "library"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
