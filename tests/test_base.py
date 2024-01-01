@@ -40,10 +40,11 @@ def data(request):
 
 
 def test_package(capsys, data):
-    main(['--sourcefile=./poetry.lock', f'--python-version={data[0]}',
+    main(['--sourcefile=./tests/poetry.lock', f'--python-version={data[0]}',
           f'--python-implementation={data[1]}', f'--platform={data[2]}',
           '--dryrun', '--no-color'])
-    assert capsys.readouterr().out.strip().endswith(data[3])
+    oo = capsys.readouterr().out.strip()
+    assert oo.endswith(data[3])
 
     # with capsys.disabled():
-    #     print(captured.out.strip())
+    #     print(oo)
