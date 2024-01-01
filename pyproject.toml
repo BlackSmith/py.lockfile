@@ -1,11 +1,10 @@
 [tool.poetry]
-name = "py-lockfile"
+name = "py_lockfile"
 version = "0.1.0"
 description = "This is a simple tool for download python packages managed by lock file."
 authors = ["Martin Korbel <git@github.com>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "py"}]
 
 [tool.poetry.dependencies]
 python = "^3.6"
