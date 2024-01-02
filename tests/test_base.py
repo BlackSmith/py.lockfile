@@ -27,9 +27,9 @@ def test_download():
          f'{PACKAGE}-cp310-cp310-macosx_10_9_x86_64.whl'),
         ('2.7', 'cp', 'manylinux1_i686',
          f'{PACKAGE}-cp27-cp27mu-manylinux1_i686.whl'),
-        ('3.11', 'cp', 'manylinux2014_ppc64le',
-         f'{PACKAGE}-cp311-cp311-manylinux_2_17_'
-         f'ppc64le.manylinux2014_ppc64le.whl'),
+        ('3.11', 'cp', 'manylinux_2_17_ppc64le',
+         f'{PACKAGE}-cp311-cp311-manylinux_2_17_ppc64le.'
+         f'manylinux2014_ppc64le.whl'),
         ('3.10', 'cp', 'musllinux_1_1_x86_64',
          f'{PACKAGE}-cp310-cp310-musllinux_1_1_x86_64.whl'),
 
