@@ -101,7 +101,7 @@ class Package:
     }
 
     def __init__(self, name: str, version: str, python_version: str,
-                 files: [dict], repository: 'Repository'):
+                 files: [dict], repository: 'Repository' = None):
         self.name = name
         self.version = version
         self.python_version = python_version if python_version != '*' else None
@@ -268,23 +268,32 @@ class Package:
         """
         Load metadata and verify package
         """
-        metadata = self.repository.get_metadata(self.name, self.version)
-        for url in metadata.get('urls'):
-            if no_binary and url['filename'].endswith('.whl'):
-                continue
-            for file in self.__files:
-                if file['file'] == url['filename']:
-                    hash_type, _hash = file['hash'].split(':')
-                    if url['digests'][hash_type] == _hash:
+        repos = [self.repository] if self.repository \
+            else list(Repository.INSTANCES.values())
+        num_files = len(self.__files)
+        while repos and num_files:
+            repo = repos.pop(0)
+            metadata = repo.get_metadata(self.name, self.version) or {}
+            for url in metadata.get('urls', []):
+                if no_binary and url['filename'].endswith('.whl'):
+                    continue
+                for file in self.__files:
+                    if file['file'] == url['filename']:
+                        hash_type, _hash = file['hash'].split(':')
+                        if url['digests'][hash_type] != _hash:
+                            e_msg = (f'Unmatch package "{file["file"]}" hash '
+                                     f' {file["hash"]} != {hash_type}:'
+                                     f'{url["digests"][hash_type]}.')
+                            if not ignore_hash:
+                                raise PackageException(e_msg)
+                            self.logs.append(e_msg)
                         file['url'] = url['url']
-                    else:
-                        e_msg = (f'Unmatch package "{file["file"]}" hash '
-                                 f' {file["hash"]} != {hash_type}:'
-                                 f'{url["digests"][hash_type]}.')
-                        if not ignore_hash:
-                            raise PackageException(e_msg)
-                        self.logs.append(e_msg)
-                    break
+                        file['repo'] = repo
+                        num_files -= 1
+                        break
+        # raise PackageException(
+        #     f'Can not download metadata for package {name}: {e}'
+        # )
         if not self.is_wheel_available and self.is_require_build_package:
             self.logs.append('This package will require a build.')
 
@@ -293,10 +302,10 @@ class Package:
         if file is None:
             raise PackageException(
                 f'The source lock file does not contain a correct reference '
-                f'for package {self.name} with required python version and '
+                f'for package "{self.name}" with required python version and '
                 f'CPU architecture.')
         try:
-            response = self.repository.get_url_response(file['url'])
+            response = file['repo'].get_url_response(file['url'])
             with open(f'{target}/{file["file"]}', 'wb') as fd:
                 fd.write(response.read())
         except urllib.error.HTTPError as e:
@@ -314,17 +323,19 @@ class Repository:
         return Repository.INSTANCES.get(name)
 
     @classmethod
-    def create(cls, name: str, username: str = None, password: str = None):
-        repo = Repository(name, username, password)
+    def create(cls, name: str, username: str = None, password: str = None,
+               url: str = None, legacy: bool = True) -> 'Repository':
+        repo = Repository(name, username, password, url, legacy)
         cls.INSTANCES[name] = repo
         return repo
 
-    def __init__(self, name: str, username: str = None, password: str = None):
+    def __init__(self, name: str, username: str = None, password: str = None,
+                 url: str = None, legacy: bool = True):
         self.name = name
         self.username = username
         self.password = password
-        self.url = 'https://pypi.org'
-        self.legacy = False
+        self.url = url or 'https://pypi.org'
+        self.legacy = legacy
 
     def get_url_response(self, url: str):
         username = os.getenv(f'{self.name.upper()}_USERNAME') or self.username
@@ -366,9 +377,7 @@ class Repository:
                 )
                 return json.loads(response.read())
         except urllib.error.HTTPError as e:
-            raise PackageException(
-                f'Can not download metadata for package {name}: {e}'
-            )
+            return None
 
 
 class SourceFile:
@@ -409,6 +418,7 @@ class SourceFile:
 
     def download_packages(self, **kwargs) -> None:
         packages = self.get_packages(kwargs['groups'])
+        print(packages)
         if not kwargs['dryrun']:
             os.makedirs(kwargs['target'], exist_ok=True)
 
@@ -500,42 +510,35 @@ class PdmLockfile(SourceFile):
     DEFAULT_GROUP = 'default'
 
     def load_credentials(self):
-        pass
+        dir = os.path.dirname(self.lockfile_path)
+        pyproject = f'{dir}/pyproject.toml'
+        if not os.path.exists(pyproject):
+            return
+        with (open(pyproject) as fd):
+            config = toml.load(fd)
+            for it in config.get('tool', {}).get('pdm', {}).get('source', []):
+                Repository.create(
+                    it['name'],
+                    it.get('username'),
+                    it.get('password'),
+                    it.get('url')
+                )
 
     def get_packages(self, package_groups: [str]) -> [Package]:
-        groups = [self.DEFAULT_GROUP] + package_groups
+        groups = set([self.DEFAULT_GROUP] + package_groups)
         packages = []
         with open(self.lockfile_path, 'r') as fd:
             data = toml.load(fd)
         for record in data.get('package', []):
-            if record.get('category', self.DEFAULT_GROUP) not in groups:
+            if not groups.intersection(
+                    record.get('groups', [self.DEFAULT_GROUP])):
                 continue
-            name = record['name']
-            files = record.get('files', [])
-            repo = None
-            if 'source' in record:
-                repo = Repository.get(record['source']['reference'])
-                match = re.match(
-                    r'(?P<schema>https?:\/\/)((?P<username>[^:]+):'
-                    r'(?P<password>[^@]+)@)?(?P<url>.*)',
-                    record['source']['url'],
-                    re.I)
-                if not repo:
-                    repo = Repository.create(
-                        record['source']['reference'],
-                        match.group('username'),
-                        match.group('password')
-                    )
-                repo.url = f'{match.group("schema")}{match.group("url")}'
-                repo.legacy = record['source'].get('type', '') == 'legacy'
-            if not repo:
-                repo = Repository.get(Repository.DEFAULT_REPOSITORY)
-            if not repo:
-                die(f'Could not find repository for package {name}.')
-            package = Package(name, record['version'],
-                              record.get('python-versions'),
-                              files, repo)
-            packages.append(package)
+            packages.append(Package(
+                record['name'],
+                record['version'],
+                record.get('requires_python'),
+                record.get('files', [])
+            ))
         return packages
 
 
@@ -656,7 +659,7 @@ PYTHON_IMPLEMENTATION:
             PLATFORM = args.platform
 
     # Create default repository
-    Repository.create(Repository.DEFAULT_REPOSITORY)
+    Repository.create(Repository.DEFAULT_REPOSITORY, legacy=False)
     try:
         file_parser: SourceFile = SourceFile.get_parser(args.sourcefile)
         file_parser.load_credentials()
