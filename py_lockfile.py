@@ -565,7 +565,7 @@ class PdmLockfile(SourceFile):
 
 
 def main(args=None):
-    if not args:
+    if args is None:
         args = sys.argv[1:]
     global PY_VERSION, PLATFORM_TYPE, PLATFORM, GLIBC, MUSL_VERSION, \
         DISABLE_COLOR
