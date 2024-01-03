@@ -1,4 +1,4 @@
-# py.Lockfile
+# py.lockfile
 
 **py.lockfile** is a tool for downloading of python packages for various OS, CPU
 and python versions.

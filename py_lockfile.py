@@ -573,7 +573,7 @@ Python package downloader.
 ---------------------------------
 
 This is a simple tool for download python packages managed by lock file.
-Repository credentials can be set by environment variables 
+Repository credentials can be set by environment variables
 (PYLF_<NAME>_USERNAME, PYLF_<NAME>_PASSWORD and PYLF_<NAME>_URL).
 
 Supported:
