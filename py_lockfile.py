@@ -536,7 +536,7 @@ class PdmLockfile(SourceFile):
         pyproject = f'{dir}/pyproject.toml'
         if not os.path.exists(pyproject):
             return
-        with (open(pyproject) as fd):
+        with open(pyproject) as fd:
             config = toml.load(fd)
             for it in config.get('tool', {}).get('pdm', {}).get('source', []):
                 Repository.create(

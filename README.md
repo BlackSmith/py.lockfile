@@ -27,8 +27,10 @@ cffi-1.15.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 
 ## Advance options
 
-The tool accepts many arguments, the most useable are  `--python-version` and `--platform`. They  
+The tool accepts many arguments, the most useable are  `--python-version` and `--platform`.
 They can help us to download packages for different python version or OS platform.
+Get the correct value of `--platform` attribute for your system, can be
+complicated. This command can help `py_lockfile --help | grep 'Your current platform'`
 
 ```shell
 > py.lockfile --help
@@ -79,7 +81,7 @@ As default values of `--python-version`, `--platform` and `--python-implementati
 However, you can download packages for different configuration as well. 
 
 ```shell
-> py.lockfile.py -s tests/poetry.lock -t wheels/ --python-version 2.7 --platform win_amd64
+> py.lockfile -s tests/poetry.lock -t wheels/ --python-version 2.7 --platform win_amd64
 📦 cffi 1.15.1  cffi-1.15.1-cp27-cp27m-win_amd64.whl
 ```
 
