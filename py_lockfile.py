@@ -117,8 +117,7 @@ class Package:
                 'The python version is not supported by this package.'
             )
 
-    def print_table_line(self, max_name_size: int = 0,
-                         max_version_size: int = 0) -> str:
+    def print_table_line(self) -> str:
         color = ''
         reset = ''
         if not DISABLE_COLOR:
@@ -129,9 +128,12 @@ class Package:
             color = '\033[31m' if not DISABLE_COLOR else ''
             icon = '\u2718'
         filename = self.__files[0].get('file', '') if self.__files else ''
+        repo = self.__files[0]['repo'].name \
+            if self.__files and 'repo' in self.__files[0] else '-'
         print(f"{color}{icon} "
-              f"{self.name.ljust(max_name_size)}\t"
-              f"{self.version.ljust(max_version_size)}\t"
+              f"{self.name.ljust(24)}\t"
+              f"{self.version.ljust(12)}"
+              f"{repo.ljust(12)}"
               f"{filename}{reset}")
         for it in self.logs:
             print(f"\t{color}{it}{reset}")
@@ -226,6 +228,7 @@ class Package:
                 r'(?P<platform>.+)\.whl$',
                 file.get('file'))
             if match:
+                is_binary_package = True
                 parsed = match.groupdict()
                 package_tag = parsed['python_tag']
                 if package_tag != 'none':
@@ -236,7 +239,6 @@ class Package:
                 package_platform = parsed['platform']
                 if package_platform != 'any' and PLATFORM != package_platform:
                     # platform is not equal, manylinux or musllinux
-                    is_binary_package = True
                     if 'linux' not in PLATFORM:
                         continue
 
@@ -276,6 +278,7 @@ class Package:
             metadata = repo.get_metadata(self.name, self.version) or {}
             for url in metadata.get('urls', []):
                 if no_binary and url['filename'].endswith('.whl'):
+                    # The user wants only source packages
                     continue
                 for file in self.__files:
                     if file['file'] == url['filename']:
@@ -295,7 +298,7 @@ class Package:
         #     f'Can not download metadata for package {name}: {e}'
         # )
         if not self.is_wheel_available and self.is_require_build_package:
-            self.logs.append('This package will require a build.')
+            self.logs.append('This package requires a build.')
 
     def download_package(self, target: str) -> None:
         file = self.__get_first()
@@ -334,15 +337,37 @@ class Repository:
         self.name = name
         self.username = username
         self.password = password
-        self.url = url or 'https://pypi.org'
+        self.url = None
+        self.set_url(url or 'https://pypi.org')
         self.legacy = legacy
 
+    def __repr__(self):
+        return f'Repository<{self.name}>'
+
+    def set_url(self, url):
+        match = re.match(
+            r'(?P<schema>https?:\/\/)((?P<username>[^:]+):'
+            r'(?P<password>[^@]+)@)?(?P<url>.*)',
+            url,
+            re.I
+        )
+        if not match:
+            raise PackageException(f'Invalid url "{url}"')
+        if match.group('username'):
+            self.username = match.group('username')
+        elif f'PYLF_{self.name.upper()}_USERNAME' in os.environ:
+            self.username = os.getenv(f'PYLF_{self.name.upper()}_USERNAME')
+        if match.group('password'):
+            self.password = match.group('password')
+        elif f'PYLF_{self.name.upper()}_PASSWORD' in os.environ:
+            self.password = os.getenv(f'PYLF_{self.name.upper()}_PASSWORD')
+        self.url = f'{match.group("schema")}{match.group("url")}'
+
     def get_url_response(self, url: str):
-        username = os.getenv(f'{self.name.upper()}_USERNAME') or self.username
-        password = os.getenv(f'{self.name.upper()}_PASSWORD') or self.password
-        if username:
+        if self.username:
             password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-            password_mgr.add_password(None, url, username, password)
+            password_mgr.add_password(None, url,
+                                      self.username, self.password)
             auth_handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
             opener = urllib.request.build_opener(auth_handler)
             return opener.open(url)
@@ -377,6 +402,11 @@ class Repository:
                 )
                 return json.loads(response.read())
         except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise PackageException(
+                    f'Access to the repository "{self.name}" is unauthorized. '
+                    'Probably is required credentials.'
+                )
             return None
 
 
@@ -418,12 +448,9 @@ class SourceFile:
 
     def download_packages(self, **kwargs) -> None:
         packages = self.get_packages(kwargs['groups'])
-        print(packages)
         if not kwargs['dryrun']:
             os.makedirs(kwargs['target'], exist_ok=True)
 
-        max_size_name = max([len(pac.name) for pac in packages])
-        max_size_version = max([len(pac.version) for pac in packages])
         for pac in packages:
             try:
                 pac.load_metadata(
@@ -432,13 +459,13 @@ class SourceFile:
                 )
                 if not kwargs['dryrun']:
                     pac.download_package(kwargs['target'])
-                pac.print_table_line(max_size_name, max_size_version)
+                pac.print_table_line()
             except PackageException as ex:
                 if not kwargs['ignore_missing']:
                     die(str(ex))
                 pac.logs.append(str(ex))
                 pac.fatal_error = True
-                pac.print_table_line(max_size_name, max_size_version)
+                pac.print_table_line()
 
 
 class PoetryLockfile(SourceFile):
@@ -481,26 +508,21 @@ class PoetryLockfile(SourceFile):
             repo = None
             if 'source' in record:
                 repo = Repository.get(record['source']['reference'])
-                match = re.match(
-                    r'(?P<schema>https?:\/\/)((?P<username>[^:]+):'
-                    r'(?P<password>[^@]+)@)?(?P<url>.*)',
-                    record['source']['url'],
-                    re.I)
                 if not repo:
-                    repo = Repository.create(
-                        record['source']['reference'],
-                        match.group('username'),
-                        match.group('password')
-                    )
-                repo.url = f'{match.group("schema")}{match.group("url")}'
+                    repo = Repository.create(record['source']['reference'])
+                repo.set_url(record['source']['url'])
                 repo.legacy = record['source'].get('type', '') == 'legacy'
             if not repo:
                 repo = Repository.get(Repository.DEFAULT_REPOSITORY)
             if not repo:
                 die(f'Could not find repository for package {name}.')
-            package = Package(name, record['version'],
-                              record.get('python-versions'),
-                              files, repo)
+            package = Package(
+                name,
+                record['version'],
+                record.get('python-versions'),
+                files,
+                repo
+            )
             packages.append(package)
         return packages
 
@@ -521,7 +543,7 @@ class PdmLockfile(SourceFile):
                     it['name'],
                     it.get('username'),
                     it.get('password'),
-                    it.get('url')
+                    url=it.get('url')
                 )
 
     def get_packages(self, package_groups: [str]) -> [Package]:
@@ -551,11 +573,14 @@ Python package downloader.
 ---------------------------------
 
 This is a simple tool for download python packages managed by lock file.
-Repository credentials can be set by environment variables.
+Repository credentials can be set by environment variables 
+(PYLF_<NAME>_USERNAME, PYLF_<NAME>_PASSWORD and PYLF_<NAME>_URL).
 
 Supported:
     * poetry.lock - Poetry, the repository credentials are automatically loaded
                     from ~/.config/pypoetry/auth.toml.
+    * pdm.lock - PDM, the repository credentials are automatically loaded from
+                 pyproject.toml
 
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -579,6 +604,7 @@ PYTHON_IMPLEMENTATION:
    * 'pp' - Pypy
    * 'ip' - IronPython
    * 'jy' - Jython
+
 """
     )
 
@@ -660,6 +686,14 @@ PYTHON_IMPLEMENTATION:
 
     # Create default repository
     Repository.create(Repository.DEFAULT_REPOSITORY, legacy=False)
+    for env_key in os.environ.keys():
+        match = re.match(r'PYLF_(?P<name>\w+)_URL', env_key)
+        if match:
+            Repository.create(
+                match.group('name'),
+                url=os.environ.get(env_key),
+                legacy=False
+            )
     try:
         file_parser: SourceFile = SourceFile.get_parser(args.sourcefile)
         file_parser.load_credentials()

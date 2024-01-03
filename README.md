@@ -1,24 +1,34 @@
 # py.Lockfile
 
-**py.Lockfile** is a tool for downloading of python packages for various OS, CPU
+**py.lockfile** is a tool for downloading of python packages for various OS, CPU
 and python versions.
 
 ## Motivation
-Python projects managed by [poetry](https://python-poetry.org/) have got dependencies saved in `poetry.lock`
-file. However, poetry is huge with many dependencies, and it is not necessary for finally deploying your project.
-This tool takes `poetry.lock` file and downloads them for target OS, CPU and python version. After that we can install them by `pip`.
+Python projects managed by [poetry](https://python-poetry.org/) or [pdm](https://pdm-project.org/) use 
+lock files for freeze packages in specific version.
+It is very useful for stability of whole project. However, for installing these
+freeze packages, we have to use mentioned package managers, which bring many
+unwanted dependencies. It is uncomfortable especially for building of docker
+containers.
+
+This tool takes `poetry.lock`/`pdm.lock` file and downloads all required packages
+(for specific OS, CPU and python version) to target directory. 
+After that we can install them by simple `pip`.
 
 
-## Simple example of usage
+## The simple example of usage
 ```shell
 > py.lockfile -s tests/poetry.lock -t wheels/
 📦 cffi 1.15.1  cffi-1.15.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 
-> ls wheels/
+> pip install wheels/*
 cffi-1.15.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 ```
 
-## Advanced options
+## Advance options
+
+The tool accepts many arguments, the most useable are  `--python-version` and `--platform`. They  
+They can help us to download packages for different python version or OS platform.
 
 ```shell
 > py.lockfile --help
@@ -65,7 +75,7 @@ PYTHON_IMPLEMENTATION:
    * 'jy' - Jython
 ```
 
-Default values of `--python-version`, `--platform` and `--python-implementation` are your current python configuration.
+As default values of `--python-version`, `--platform` and `--python-implementation` are set your current python configuration.
 However, you can download packages for different configuration as well. 
 
 ```shell
@@ -74,8 +84,11 @@ However, you can download packages for different configuration as well.
 ```
 
 ## Download packages from a private repository
-Credentials are automatically loaded from `pypoetry/auth.toml` or we can overwrite them by environment variables.
+Credentials are automatically loaded from `pypoetry/auth.toml`, `pyproject.toml` 
+or we can overwrite them by environment variables.
 ```shell
-<REPO_NAME>_USERNAME=user <REPO_NAME>_PASSWORD=password py.lockfile ...
+PYLF_<REPO_NAME>_USERNAME=user PYLF_<REPO_NAME>_PASSWORD=password  py.lockfile ...
 ```
 
+Optionally, we can set `PYLF_<REPO_NAME>_URL` as well, for appending custom pypi
+entry point.
