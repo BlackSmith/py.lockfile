@@ -564,7 +564,9 @@ class PdmLockfile(SourceFile):
         return packages
 
 
-def main(args):
+def main(args=None):
+    if not args:
+        args = sys.argv[1:]
     global PY_VERSION, PLATFORM_TYPE, PLATFORM, GLIBC, MUSL_VERSION, \
         DISABLE_COLOR
     parser = argparse.ArgumentParser(
