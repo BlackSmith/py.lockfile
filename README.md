@@ -1,4 +1,12 @@
+[![PyPI](https://img.shields.io/pypi/v/py.lockfile2?color=green&style=plastic)](https://pypi.org/project/py.lockfile2/)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/py.lockfile2?style=plastic)
+![License](https://img.shields.io/github/license/Blacksmith/py.lockfile?style=plastic)
 # py.lockfile
+
+Install
+```shell
+pip install py.lockfile2
+```
 
 **py.lockfile** is a tool for downloading of python packages for various OS, CPU
 and python versions.
