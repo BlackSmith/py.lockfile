@@ -104,15 +104,16 @@ class Package:
                  files: [dict], repository: 'Repository' = None):
         self.name = name
         self.version = version
-        self.python_version = python_version if python_version != '*' else None
         self.is_require_build_package = False
         self.repository = repository
         self.__files = []
         self.logs = []
         self.fatal_error = False
+        self.hashes = []   # This is use by Pipenv
         if files:
             self.set_files(files)
-        if not self.check_python_version():
+        if (python_version != '*' and not self.check_python_version(
+                python_version)):
             self.logs.append(
                 'The python version is not supported by this package.'
             )
@@ -170,12 +171,17 @@ class Package:
             return None
         return file['url']
 
-    def check_python_version(self):
-        if not self.python_version:
+    def check_python_version(self, python_version):
+        if not python_version:
             return True
+        if 'python_version' in python_version:
+            # Pipenv.lock file
+            py_version = '.'.join([str(it) for it in PY_VERSION])
+            cond = python_version.replace('python_version', f"'{py_version}'")
+            return eval(cond)
         ops = '|'.join(self.OPERATORS.keys())
         regx = re.compile(rf'^\s*(?P<op>{ops})\s*(?P<num>[0-9\\.\\*]+)\s*$')
-        for cond in self.python_version.split(','):
+        for cond in python_version.split(','):
             reg = regx.match(cond)
             if not reg:
                 return False
@@ -265,11 +271,37 @@ class Package:
             self.is_require_build_package = \
                 len(self.__files) == 1 and is_binary_package
 
-    def load_metadata(self, ignore_hash: bool = False,
-                      no_binary: bool = False) -> dict:
+    def __load_metadata_by__hashes(self, ignore_hash: bool = False,
+                                   no_binary: bool = False):
+        """
+        We detect package by hash. Variant for Pipfile.lock
+        """
+        repos = [self.repository] if self.repository \
+            else list(Repository.INSTANCES.values())
+        while repos:
+            repo = repos.pop(0)
+            metadata = repo.get_metadata(self.name, self.version) or {}
+            files = []
+            for url in metadata.get('urls', []):
+                if (not ignore_hash and f"sha256:{url['digests']['sha256']}"
+                        not in self.hashes):
+                    continue
+                if no_binary and url['url'].endswith('.whl'):
+                    continue
+                files.append({
+                    'file': os.path.basename(url['url']),
+                    'url': url['url'],
+                    'repo': repo
+                })
+            self.set_files(files)
+
+    def load_metadata(self, ignore_hash: bool = False, no_binary: bool = False):
         """
         Load metadata and verify package
         """
+        if self.hashes:
+            self.__load_metadata_by__hashes(ignore_hash, no_binary)
+            return
         repos = [self.repository] if self.repository \
             else list(Repository.INSTANCES.values())
         num_files = len(self.__files)
@@ -327,19 +359,21 @@ class Repository:
 
     @classmethod
     def create(cls, name: str, username: str = None, password: str = None,
-               url: str = None, legacy: bool = True) -> 'Repository':
-        repo = Repository(name, username, password, url, legacy)
+               url: str = None, legacy: bool = True,
+               verify_ssl: bool = True) -> 'Repository':
+        repo = Repository(name, username, password, url, legacy, verify_ssl)
         cls.INSTANCES[name] = repo
         return repo
 
     def __init__(self, name: str, username: str = None, password: str = None,
-                 url: str = None, legacy: bool = True):
+                 url: str = None, legacy: bool = True, verify_ssl: bool = True):
         self.name = name
         self.username = username
         self.password = password
         self.url = None
         self.set_url(url or 'https://pypi.org')
         self.legacy = legacy
+        self.verify_ssl = verify_ssl
 
     def __repr__(self):
         return f'Repository<{self.name}>'
@@ -468,6 +502,46 @@ class SourceFile:
                 pac.print_table_line()
 
 
+class PipenvLockfile(SourceFile):
+    FILENAME = 'Pipfile.lock'
+    DEFAULT_GROUP = 'default'
+
+    def load_credentials(self):
+        pass
+
+    def get_packages(self, package_groups: [str]) -> [Package]:
+        group = self.DEFAULT_GROUP if not package_groups else package_groups[0]
+        packages = []
+        with open(self.lockfile_path, 'r') as fd:
+            data = json.load(fd)
+
+        for source in data.get('_meta', {}).get('sources', []):
+            Repository.create(
+                source['name'],
+                url=source['url'],
+                verify_ssl=source['verify_ssl']
+            )
+
+        for name, record in data.get(group, {}).items():
+            repo = None
+            if 'index' in record:
+                repo = Repository.get(record['index'])
+            if not repo:
+                repo = Repository.get(Repository.DEFAULT_REPOSITORY)
+            if not repo:
+                die(f'Could not find repository for package {name}.')
+            package = Package(
+                name,
+                record['version'].replace('=', ''),
+                record.get('markers', '*'),
+                None,
+                repo
+            )
+            package.hashes = record.get('hashes')
+            packages.append(package)
+        return packages
+
+
 class PoetryLockfile(SourceFile):
 
     FILENAME = 'poetry.lock'
@@ -511,6 +585,7 @@ class PoetryLockfile(SourceFile):
                 if not repo:
                     repo = Repository.create(record['source']['reference'])
                 repo.set_url(record['source']['url'])
+                repo.verify_ssl = record['source'].get('verify_ssl', True)
                 repo.legacy = record['source'].get('type', '') == 'legacy'
             if not repo:
                 repo = Repository.get(Repository.DEFAULT_REPOSITORY)
@@ -543,7 +618,8 @@ class PdmLockfile(SourceFile):
                     it['name'],
                     it.get('username'),
                     it.get('password'),
-                    url=it.get('url')
+                    url=it.get('url'),
+                    verify_ssl=it.get('verify_ssl', True)
                 )
 
     def get_packages(self, package_groups: [str]) -> [Package]:
@@ -611,7 +687,7 @@ PYTHON_IMPLEMENTATION:
     )
 
     parser.add_argument('-s', '--sourcefile', type=str,
-                        help='source file (e.g. poetry.lock)')
+                        help='source file (e.g. poetry.lock, pdm.lock)')
 
     parser.add_argument('-t', '--target',
                         default='./wheels',
@@ -694,7 +770,7 @@ PYTHON_IMPLEMENTATION:
             Repository.create(
                 match.group('name'),
                 url=os.environ.get(env_key),
-                legacy=False
+                legacy=True
             )
     try:
         file_parser: SourceFile = SourceFile.get_parser(args.sourcefile)
