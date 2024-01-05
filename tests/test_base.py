@@ -39,6 +39,13 @@ def data(request):
     return request.param
 
 
+def test_pipenv(capsys, data):
+    main(['--sourcefile=./tests/Pipfile.lock', f'--python-version={data[0]}',
+          f'--python-implementation={data[1]}', f'--platform={data[2]}',
+          '--dryrun', '--no-color'])
+    oo = capsys.readouterr().out.strip()
+    assert oo.endswith(data[3])
+
 def test_poetry(capsys, data):
     main(['--sourcefile=./tests/poetry.lock', f'--python-version={data[0]}',
           f'--python-implementation={data[1]}', f'--platform={data[2]}',
