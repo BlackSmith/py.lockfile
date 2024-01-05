@@ -46,6 +46,7 @@ def test_pipenv(capsys, data):
     oo = capsys.readouterr().out.strip()
     assert oo.endswith(data[3])
 
+
 def test_poetry(capsys, data):
     main(['--sourcefile=./tests/poetry.lock', f'--python-version={data[0]}',
           f'--python-implementation={data[1]}', f'--platform={data[2]}',
