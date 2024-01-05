@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "py.lockfile2"
 packages = [{ include = "py_lockfile.py" }]
-version = "0.2.0"
+version = "0.3.0"
 description = "This is a simple tool for download python packages managed by lock file."
 authors = ["Martin Korbel <git@github.com>"]
 license = "MIT"
