@@ -11,7 +11,7 @@ import urllib.request
 
 import toml
 import argparse
-import distutils.util
+
 
 LEGACY_ALIASES = {
     "manylinux1_x86_64": "manylinux_2_5_x86_64",
@@ -32,8 +32,8 @@ GLIBC = platform.libc_ver()
 
 # 'x86_64'
 PLATFORM_TYPE = platform.machine()
-# 'linux_x86_64'
-PLATFORM = distutils.util.get_platform().replace('.', '_').replace('-', '_')
+# 'linux'
+PLATFORM = platform.system().lower()
 
 if hasattr(sys, 'pypy_version_info'):
     PYIMPL = 'pp'  # Pypy
@@ -244,7 +244,7 @@ class Package:
 
                 package_platform = parsed['platform']
                 if package_platform != 'any' and PLATFORM != package_platform:
-                    # platform is not equal, manylinux or musllinux
+                    # platform is equal manylinux or musllinux
                     if 'linux' not in PLATFORM:
                         continue
 
@@ -551,7 +551,7 @@ class PoetryLockfile(SourceFile):
         if 'linux' in PLATFORM:
             home_directory = os.path.expanduser("~")
             poetry_auth = f'{home_directory}/.config/pypoetry/auth.toml'
-        elif 'macosx' in PLATFORM:
+        elif 'darwin' in PLATFORM:      # MacOS
             home_directory = os.path.expanduser("~")
             poetry_auth = (f'{home_directory}/Library/Application '
                            f'Support/pypoetry/auth.toml')
