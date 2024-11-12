@@ -12,14 +12,14 @@ pip install py.lockfile2
 and python versions.
 
 ## Motivation
-Python projects managed by [poetry](https://python-poetry.org/) or [pdm](https://pdm-project.org/) use 
+Python projects managed by [pipenv](https://pipenv.pypa.io/), [poetry](https://python-poetry.org/) or [pdm](https://pdm-project.org/) use 
 lock files for freeze packages in specific version.
 It is very useful for stability of whole project. However, for installing these
 freeze packages, we have to use mentioned package managers, which bring many
 unwanted dependencies. It is uncomfortable especially for building of docker
 containers.
 
-This tool takes `poetry.lock`/`pdm.lock` file and downloads all required packages
+This tool takes `Pipfile.lock`/`poetry.lock`/`pdm.lock` file and downloads all required packages
 (for specific OS, CPU and python version) to target directory. 
 After that we can install them by simple `pip`.
 
@@ -42,22 +42,33 @@ complicated. This command can help `py_lockfile --help | grep 'Your current plat
 
 ```shell
 > py.lockfile --help
-usage: py_lockfile.py [-h] [-s SOURCEFILE] [-t TARGET] [-g GROUP] [-p PYTHON_VERSION] [--platform PLATFORM] [--python-implementation {cp,ip,pp,jy}] [--ignore-missing] [--ignore-hash] [--no-binary] [--dryrun] [--no-color]
+usage: py_lockfile [-h] [-s SOURCEFILE] [-t TARGET] [-g GROUP] [-p PYTHON_VERSION] [--platform PLATFORM] [--python-implementation {cp,ip,pp,jy}] [--ignore-missing] [--ignore-hash] [--no-binary] [--dryrun] [--no-color]
 
 Python package downloader.
 ---------------------------------
 
+This is a simple tool for download python packages managed by lock file.
+Repository credentials can be set by environment variables
+(PYLF_<NAME>_USERNAME, PYLF_<NAME>_PASSWORD and PYLF_<NAME>_URL).
+
+Supported:
+    * Pipfile.lock - Pipenv.
+    * poetry.lock - Poetry, the repository credentials are automatically loaded
+                    from ~/.config/pypoetry/auth.toml.
+    * pdm.lock - PDM, the repository credentials are automatically loaded from
+                 pyproject.toml
+
 optional arguments:
   -h, --help            show this help message and exit
   -s SOURCEFILE, --sourcefile SOURCEFILE
-                        source file (e.g. poetry.lock)
+                        source file (e.g. Pipfile.lock, poetry.lock or pdm.lock)
   -t TARGET, --target TARGET
                         Download folder (default: ./wheels)
   -g GROUP, --group GROUP
                         Append optional group of packages (e.g. dev)
   -p PYTHON_VERSION, --python-version PYTHON_VERSION
-                        Download packages for python version (default: 3.9.18).
-  --platform PLATFORM   Download packages for platform (default: manylinux_2_38_x86_64).
+                        Download packages for python version (default: 3.9.5).
+  --platform PLATFORM   Download packages for platform (default: manylinux_2_28_x86_64).
   --python-implementation {cp,ip,pp,jy}
                         Download packages for python implementation (default: cp).
   --ignore-missing      Skip missing packages.
@@ -70,7 +81,7 @@ SOURCEFILE:
     Automatically try to find supported files in current folder.
 
 PLATFORM:
-    Your current platform is 'manylinux_2_38_x86_64'
+    Your current platform is 'manylinux_2_28_x86_64'
     See more https://peps.python.org/pep-0491/#file-name-convention
     e.g.:
         * macosx_10_9_x86_64
@@ -83,6 +94,7 @@ PYTHON_IMPLEMENTATION:
    * 'pp' - Pypy
    * 'ip' - IronPython
    * 'jy' - Jython
+
 ```
 
 As default values of `--python-version`, `--platform` and `--python-implementation` are set your current python configuration.

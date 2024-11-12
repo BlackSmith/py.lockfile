@@ -655,6 +655,7 @@ Repository credentials can be set by environment variables
 (PYLF_<NAME>_USERNAME, PYLF_<NAME>_PASSWORD and PYLF_<NAME>_URL).
 
 Supported:
+    * Pipfile.lock - Pipenv.
     * poetry.lock - Poetry, the repository credentials are automatically loaded
                     from ~/.config/pypoetry/auth.toml.
     * pdm.lock - PDM, the repository credentials are automatically loaded from
@@ -687,7 +688,8 @@ PYTHON_IMPLEMENTATION:
     )
 
     parser.add_argument('-s', '--sourcefile', type=str,
-                        help='source file (e.g. poetry.lock, pdm.lock)')
+                        help='source file (e.g. Pipfile.lock, poetry.lock '
+                             'or pdm.lock)')
 
     parser.add_argument('-t', '--target',
                         default='./wheels',
