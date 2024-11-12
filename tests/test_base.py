@@ -62,5 +62,10 @@ def test_pdm(capsys, data):
     oo = capsys.readouterr().out.strip()
     assert oo.endswith(data[3])
 
-    # with capsys.disabled():
-    #     print(oo)
+
+def test_abi3(capsys):
+    main(['--sourcefile=./tests/abi/pdm.lock', '--python-version=3.11',
+          '--python-implementation=cp', '--platform=manylinux_2_28_x86_64',
+          '--dryrun', '--no-color'])
+    oo = capsys.readouterr().out.strip()
+    assert oo.endswith('cryptography-43.0.3-cp39-abi3-manylinux_2_28_x86_64.whl')

@@ -237,11 +237,19 @@ class Package:
                 is_binary_package = True
                 parsed = match.groupdict()
                 package_tag = parsed['python_tag']
+                abi_tag = parsed['abi_tag']
                 if package_tag != 'none':
                     if f'py{PY_VERSION[0]}' not in package_tag and \
                             py_lang != package_tag:
-                        continue
-
+                        try:
+                            np = int(re.search(r'(\d+)', package_tag)
+                                     .group(1))
+                            nl = int(f'{PY_VERSION[0]}{PY_VERSION[1]}')
+                        except Exception:
+                            np = 1
+                            nl = 0
+                        if abi_tag != f'abi{PY_VERSION[0]}' or nl < np:
+                            continue
                 package_platform = parsed['platform']
                 if package_platform != 'any' and PLATFORM != package_platform:
                     # platform is equal manylinux or musllinux
