@@ -68,6 +68,9 @@ if 'linux' in PLATFORM and not GLIBC[0]:
 
 DISABLE_COLOR = False
 
+# https://docs.python.org/3.13/whatsnew/3.13.html#free-threaded-cpython
+FREE_THREADED_ENABLED = 't' in sys.abiflags
+
 
 class PackageException(Exception): pass     # noqa
 
@@ -250,6 +253,9 @@ class Package:
                             nl = 0
                         if abi_tag != f'abi{PY_VERSION[0]}' or nl < np:
                             continue
+                    if f'{PY_VERSION[0]}{PY_VERSION[1]}t' in abi_tag\
+                       and not FREE_THREADED_ENABLED:
+                        continue
                 package_platform = parsed['platform']
                 if package_platform != 'any' and PLATFORM != package_platform:
                     # platform is equal manylinux or musllinux
